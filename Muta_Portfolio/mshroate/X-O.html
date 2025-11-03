@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لعبة إكس أو (XO) بمستويات صعوبة</title>
+    <style>
+        /* ================================================= */
+        /* CSS: التصميم والمظهر */
+        /* ================================================= */
+        body {
+            font-family: 'Tahoma', sans-serif;
+            background-color: #1a1a2e;
+            color: #e9e9e9;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        h1 {
+            color: #ff6a6a;
+            margin-bottom: 20px;
+        }
+
+        /* حاوية وضع اللعب الرئيسية */
+        #mode-container {
+            margin-bottom: 30px;
+            background: #2e2c4f;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* حاوية أزرار الصعوبة (تظهر فقط في وضع PVC) */
+        #difficulty-selection {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .mode-button, .difficulty-button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: 0.3s;
+            background-color: #4a4e69;
+            color: #e9e9e9;
+            font-weight: bold;
+        }
+
+        .mode-button:hover:not(.active), .difficulty-button:hover:not(.active) {
+            background-color: #6a6e8f;
+        }
+        
+        .mode-button.active {
+            background-color: #ff6a6a;
+            color: #1a1a2e;
+            box-shadow: 0 0 10px rgba(255, 106, 106, 0.7);
+        }
+
+        .difficulty-button.active {
+            background-color: #6aff6a; /* لون مختلف لتمييز الصعوبة */
+            color: #1a1a2e;
+            box-shadow: 0 0 10px rgba(106, 255, 106, 0.7);
+        }
+        
+        /* لوحة اللعب */
+        #board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            background-color: #2e2c4f;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: #4a4e69;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4em;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 5px;
+        }
+
+        .cell:hover {
+            background-color: #6a6e8f;
+        }
+        
+        .cell.O { color: #6aff6a; } /* لون دائرة */
+        .cell.X { color: #ff6a6a; } /* لون إكس */
+
+        /* شاشة النتيجة */
+        #status-message {
+            margin-top: 20px;
+            font-size: 1.8em;
+            font-weight: bold;
+            height: 40px;
+            color: #ffda6a;
+        }
+
+        /* زر إعادة التشغيل */
+        #reset-button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            margin-top: 20px;
+            background-color: #ff6a6a;
+            color: #1a1a2e;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        #reset-button:hover {
+            background-color: #ff8c8c;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>لعبة إكس أو (X O)</h1>
+
+    <div id="mode-container">
+        <div id="mode-selection">
+            <button class="mode-button active" id="mode-pvc" onclick="setMode('pvc')">لاعب ضد كمبيوتر</button>
+            <button class="mode-button" id="mode-pvp" onclick="setMode('pvp')">لاعب ضد لاعب (2P)</button>
+        </div>
+        
+        <div id="difficulty-selection">
+            <button class="difficulty-button active" data-difficulty="hard" onclick="setDifficulty('hard')">محترف</button>
+            <button class="difficulty-button" data-difficulty="medium" onclick="setDifficulty('medium')">متوسط</button>
+            <button class="difficulty-button" data-difficulty="easy" onclick="setDifficulty('easy')">ضعيف</button>
+        </div>
+    </div>
+
+    <div id="status-message">ابدأ اللعب!</div>
+
+    <div id="board">
+        <div class="cell" data-index="0"></div>
+        <div class="cell" data-index="1"></div>
+        <div class="cell" data-index="2"></div>
+        <div class="cell" data-index="3"></div>
+        <div class="cell" data-index="4"></div>
+        <div class="cell" data-index="5"></div>
+        <div class="cell" data-index="6"></div>
+        <div class="cell" data-index="7"></div>
+        <div class="cell" data-index="8"></div>
+    </div>
+
+    <button id="reset-button" onclick="initGame()">إعادة تعيين اللعبة</button>
+
+    <script>
+        // =================================================================
+        // JAVASCRIPT: منطق اللعبة
+        // =================================================================
+
+        const cells = document.querySelectorAll('.cell');
+        const statusMessage = document.getElementById('status-message');
+        const modePVCButton = document.getElementById('mode-pvc');
+        const modePVPButton = document.getElementById('mode-pvp');
+        const difficultySelection = document.getElementById('difficulty-selection');
+        const difficultyButtons = document.querySelectorAll('.difficulty-button');
+
+        let board; // المصفوفة التي تمثل حالة اللوحة (9 خانات)
+        let currentPlayer;
+        let gameActive;
+        let gameMode = 'pvc'; 
+        let currentDifficulty = 'hard'; // الافتراضي هو محترف
+        
+        const AI_PLAYER = 'O'; 
+        const HUMAN_PLAYER = 'X'; 
+        
+        // نسب الخطأ بناءً على الصعوبة
+        const DIFFICULTY_MISTAKES = {
+            'easy': 0.70,   // 70% فرصة للخطأ
+            'medium': 0.30, // 30% فرصة للخطأ
+            'hard': 0.00    // 0% فرصة للخطأ (يلعب Minimax كامل)
+        };
+
+        const WINNING_COMBOS = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], 
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], 
+            [0, 4, 8], [2, 4, 6]            
+        ];
+
+        // ============================
+        // I. التحكم في وضع اللعب والصعوبة
+        // ============================
+        
+        function setDifficulty(difficulty) {
+            currentDifficulty = difficulty;
+            difficultyButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.difficulty-button[data-difficulty="${difficulty}"]`).classList.add('active');
+            initGame();
+        }
+
+        function setMode(mode) {
+            gameMode = mode;
+            modePVCButton.classList.remove('active');
+            modePVPButton.classList.remove('active');
+            
+            if (mode === 'pvc') {
+                modePVCButton.classList.add('active');
+                difficultySelection.style.display = 'flex'; // إظهار خيارات الصعوبة
+            } else {
+                modePVPButton.classList.add('active');
+                difficultySelection.style.display = 'none'; // إخفاء خيارات الصعوبة
+            }
+            initGame(); 
+        }
+        
+        // ============================
+        // II. تهيئة اللعبة
+        // ============================
+        
+        function initGame() {
+            board = Array(9).fill(''); 
+            currentPlayer = HUMAN_PLAYER; 
+            gameActive = true;
+            
+            cells.forEach(cell => {
+                cell.textContent = '';
+                cell.className = 'cell'; 
+                cell.removeEventListener('click', handleCellClick);
+                cell.addEventListener('click', handleCellClick);
+            });
+            
+            if (gameMode === 'pvc') {
+                const difficultyName = document.querySelector(`.difficulty-button[data-difficulty="${currentDifficulty}"]`).textContent;
+                statusMessage.textContent = `أنت (X) تبدأ ضد الكمبيوتر (${difficultyName}).`;
+            } else {
+                statusMessage.textContent = `اللاعب X يبدأ.`;
+            }
+        }
+
+        // ============================
+        // III. منطق اللعب
+        // ============================
+
+        function handleCellClick(e) {
+            const clickedCell = e.target;
+            const clickedCellIndex = parseInt(clickedCell.getAttribute('data-index'));
+
+            if (board[clickedCellIndex] !== '' || !gameActive || (gameMode === 'pvc' && currentPlayer === AI_PLAYER)) {
+                return;
+            }
+
+            makeMove(clickedCell, clickedCellIndex, currentPlayer);
+            
+            if (gameActive) {
+                if (gameMode === 'pvc') {
+                    currentPlayer = AI_PLAYER;
+                    statusMessage.textContent = 'دور الكمبيوتر...';
+                    setTimeout(aiTurn, 500); 
+                } else {
+                    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                    statusMessage.textContent = `دور اللاعب ${currentPlayer}.`;
+                }
+            }
+        }
+
+        function makeMove(cellElement, index, player) {
+            board[index] = player;
+            cellElement.textContent = player;
+            cellElement.classList.add(player);
+
+            if (checkWin(board, player)) {
+                handleResult(player);
+                return true;
+            }
+
+            if (checkDraw(board)) {
+                handleResult('Draw');
+                return true;
+            }
+            return false;
+        }
+
+        function checkWin(currentBoard, player) {
+            return WINNING_COMBOS.some(combination => {
+                return combination.every(index => currentBoard[index] === player);
+            });
+        }
+
+        function checkDraw(currentBoard) {
+            return currentBoard.every(cell => cell !== '');
+        }
+
+        function handleResult(winner) {
+            gameActive = false;
+            if (winner === 'Draw') {
+                statusMessage.textContent = 'تعادل! لا يوجد فائز.';
+            } else {
+                statusMessage.textContent = `اللاعب ${winner} هو الفائز! 🏆`;
+            }
+            cells.forEach(cell => cell.removeEventListener('click', handleCellClick));
+        }
+
+        // ============================
+        // IV. الذكاء الاصطناعي (Minimax) - مع عنصر الخطأ
+        // ============================
+
+        function getAvailableMoves(currentBoard) {
+            return currentBoard.map((cell, index) => cell === '' ? index : null).filter(val => val !== null);
+        }
+
+        // دالة Minimax (للحركة المثالية) - لم تتغير
+        function minimax(newBoard, player) {
+            const availableMoves = getAvailableMoves(newBoard);
+
+            if (checkWin(newBoard, HUMAN_PLAYER)) return { score: -10 };
+            if (checkWin(newBoard, AI_PLAYER)) return { score: 10 };
+            if (availableMoves.length === 0) return { score: 0 };
+
+            let moves = [];
+            for (let i = 0; i < availableMoves.length; i++) {
+                let move = {};
+                move.index = availableMoves[i];
+                newBoard[availableMoves[i]] = player;
+
+                let result = minimax(newBoard, player === AI_PLAYER ? HUMAN_PLAYER : AI_PLAYER);
+                move.score = result.score;
+
+                newBoard[availableMoves[i]] = ''; // التراجع عن الحركة
+                moves.push(move);
+            }
+
+            // اختيار أفضل حركة
+            let bestMove;
+            let bestScore = player === AI_PLAYER ? -10000 : 10000;
+
+            for (let i = 0; i < moves.length; i++) {
+                if (player === AI_PLAYER) {
+                    if (moves[i].score > bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = moves[i];
+                    }
+                } else {
+                    if (moves[i].score < bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = moves[i];
+                    }
+                }
+            }
+            return bestMove;
+        }
+
+        function aiTurn() {
+            if (!gameActive || currentPlayer !== AI_PLAYER) return;
+
+            const availableMoves = getAvailableMoves(board);
+            let moveIndex;
+            const mistakeChance = DIFFICULTY_MISTAKES[currentDifficulty];
+
+            // ** منطق الخطأ بناءً على الصعوبة **
+            if (Math.random() < mistakeChance && availableMoves.length > 0) {
+                // الكمبيوتر يرتكب خطأ (يختار حركة عشوائية)
+                const randomIndex = Math.floor(Math.random() * availableMoves.length);
+                moveIndex = availableMoves[randomIndex];
+                statusMessage.textContent = 'دور الكمبيوتر... (وقع في فخ!)';
+            } else {
+                // الكمبيوتر يلعب بأفضل طريقة (Minimax)
+                const bestSpot = minimax(board, AI_PLAYER);
+                moveIndex = bestSpot.index;
+                statusMessage.textContent = 'دور الكمبيوتر...';
+            }
+            
+            const cellElement = cells[moveIndex];
+
+            if (makeMove(cellElement, moveIndex, AI_PLAYER)) {
+                return; 
+            }
+
+            currentPlayer = HUMAN_PLAYER;
+            statusMessage.textContent = `دورك (X).`;
+        }
+
+        // ============================
+        // V. بدء التشغيل
+        // ============================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // تهيئة الوضع الافتراضي عند التحميل
+            setMode('pvc');
+            setDifficulty('hard');
+            initGame();
+        });
+
+    </script>
+</body>
+</html>

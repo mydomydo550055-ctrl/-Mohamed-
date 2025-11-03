@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لعبة الثعبان - التخطيط الجانبي والأرقام القياسية</title>
+    <style>
+        /* ================================================= */
+        /* CSS: التصميم والمظهر */
+        /* ================================================= */
+        :root {
+            --board-cells: 40;
+            --cell-size: 10px;
+            --board-size: calc(var(--board-cells) * var(--cell-size)); 
+            --snake-color: #dd0303; 
+            --food-color: #0895e7; 
+            --background-color: #333;
+            --ui-color: #f0f0f0;
+            --primary-button: #00A86B;
+            --secondary-button: #FFD700;
+        }
+       
+    
+        body {
+            font-family: 'Tahoma', sans-serif;
+            background-color: var(--background-color);
+            color: var(--ui-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .main-wrapper {
+            display: flex;
+            gap: 25px;
+            background: #222;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+            align-items: flex-start; /* محاذاة العناصر للأعلى */
+        }
+        
+        .game-column {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: var(--board-size); /* لتحديد عرض العمود بناءً على اللوحة */
+        }
+
+        /* شاشة اللعبة */
+        #game-board {
+            width: var(--board-size);
+            height: var(--board-size);
+            background-color: #444;
+            display: grid;
+            grid-template-columns: repeat(var(--board-cells), 1fr);
+            grid-template-rows: repeat(var(--board-cells), 1fr);
+            border: 5px solid var(--snake-color);
+            border-radius: 5px;
+            position: relative;
+        }
+        .snake { background-color: var(--snake-color); border-radius: 1px; }
+        .food { background-color: var(--food-color); border-radius: 20%; }
+        .food.spawned { background-color: #00BFFF; } 
+
+        /* لوحة النتائج والتحكم */
+        .header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #555;
+        }
+        .score-item { font-size: 1.5em; font-weight: bold; }
+        .pause-button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .pause-button:hover { background-color: #2980b9; }
+
+        /* شاشات الأرقام القياسية والوقت */
+        .records-panel {
+            display: flex;
+            justify-content: space-between;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            font-size: 1.1em;
+        }
+        .record-item { color: var(--secondary-button); }
+
+        /* شاشة النهاية */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 10px;
+            display: none;
+        }
+        .restart-button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            background-color: var(--primary-button);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        /* المتجر المفتوح (العمود الجانبي) */
+        #shop-container {
+            width: 210px; /* عرض ثابت للمتجر */
+            background-color: #333;
+            padding: 5px;
+            border-radius: 5px;
+            border: 2px solid var(--secondary-button);
+        }
+        #shop-container h3 {
+             color: var(--secondary-button); 
+             margin-top: 0; 
+             margin-bottom: 15px;
+             font-size: 1.4em;
+             border-bottom: 1px solid #555;
+             padding-bottom: 10px;
+             text-align: center;
+        }
+        #upgrades-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .upgrade-item {
+            background-color: #444;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: right;
+            border: 2px solid #444;
+            transition: box-shadow 0.3s, background-color 0.3s;
+        }
+        .upgrade-item.ready-to-buy {
+            box-shadow: 0 0 10px var(--secondary-button);
+            border-color: var(--secondary-button);
+            background-color: #555;
+        }
+        .upgrade-details h4 {
+            margin: 0 0 5px 0;
+            color: var(--primary-button);
+            font-size: 1.1em;
+        }
+        .buy-button {
+            margin-top: 8px;
+            width: 100%;
+            padding: 8px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .buy-button:disabled {
+            background-color: #555;
+            color: #aaa;
+            cursor: not-allowed;
+        }
+        #powerup-status { text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="game-column">
+            <h1 style="color: var(--primary-button); margin: 0; text-align: center;">الثعبان المُطور 🐍</h1>
+            
+            <div class="header-controls">
+                <span class="score-item">النقاط الحالية: <span id="score">0</span></span>
+                <button class="pause-button" id="pause-button" onclick="togglePause()">إيقاف مؤقت (A/Space)</button>
+            </div>
+            
+            <div class="records-panel">
+                <span class="record-item">ألسكور: <span id="high-score">0</span></span>
+                <span class="record-item">الوقت: <span id="time-score">00:00</span></span>
+            </div>
+            
+            <div id="game-board">
+                <div id="game-over-overlay" class="overlay">
+                    <h2>انتهت اللعبة!</h2>
+                    <p>النقاط النهائية: <span id="final-score">0</span></p>
+                    <p>مدة اللعب: <span id="final-time">00:00</span></p>
+                    <button class="restart-button" onclick="initGame()">إعادة التشغيل</button>
+                </div>
+            </div>
+            <div id="powerup-status" style="display: none;"></div>
+        </div>
+        
+        <div id="shop-container">
+            <h3>متجر القوى النشطة</h3>
+            <div id="upgrades-list">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // =================================================================
+        // JAVASCRIPT: منطق اللعبة
+        // =================================================================
+
+        const BOARD_SIZE = 40;
+        const INITIAL_SPEED = 150; 
+        const POINTS_PER_FOOD = 3; 
+        const MAGNET_RANGE = 5; 
+        const TAIL_BOMB_LENGTH = 4; 
+        
+        const gameBoard = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score');
+        const powerupStatus = document.getElementById('powerup-status');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const pauseButton = document.getElementById('pause-button');
+        const highScoreDisplay = document.getElementById('high-score');
+        const timeScoreDisplay = document.getElementById('time-score');
+
+        let snake;
+        let foodItems; 
+        let direction;
+        let nextDirection; 
+        let gameLoopInterval;
+        let gameSpeed;
+        let score;
+        let cumulativeScore; // لتتبع السكور حتى بعد الإنفاق (أعلى سكور)
+        let gameActive = false;
+        let isPaused = false;
+        
+        // حالة التطويرات القوية
+        let isInvincible = false;
+        let isMagnetActive = false;
+        let invincibilityTimer;
+        let magnetTimer;
+        let baseGameSpeed = INITIAL_SPEED;
+
+        // متغيرات الوقت والـ High Score
+        let timerInterval;
+        let startTime;
+        let high_score = localStorage.getItem('snake_high_score') ? parseInt(localStorage.getItem('snake_high_score')) : 0;
+        
+        // تطويرات المتجر
+        let POWERUPS = {
+            magnet: { name: "جذب الطعام 🧲", desc: "جذب الطعام القريب (5 ثوانٍ)", cost: 10, duration: 5000, active: false },
+            invincibility: { name: "حصانة مؤقتة ⭐", desc: "حصانة ضد الذيل (60 ثانية)", cost: 15, duration: 60000, active: false },
+            spawn: { name: "خلق الطعام 🍎", desc: "يضيف كرة طعام إضافية", cost: 12 },
+            bomb: { name: "تفجير الذيل 💥", desc: `تقصير الثعبان إلى ${TAIL_BOMB_LENGTH} قطع`, cost: 20 }
+        };
+
+        // ============================
+        // I. منطق اللعبة الأساسي
+        // ============================
+        
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            if (isPaused || !gameActive) return;
+            const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+            timeScoreDisplay.textContent = formatTime(elapsedSeconds);
+        }
+
+        function initGame() {
+            // تنظيف الحالة
+            clearInterval(timerInterval);
+            clearTimeout(invincibilityTimer);
+            clearTimeout(magnetTimer);
+            isInvincible = false;
+            isMagnetActive = false;
+            powerupStatus.style.display = 'none';
+
+            gameOverOverlay.style.display = 'none';
+            gameActive = true;
+            isPaused = false;
+            pauseButton.textContent = "إيقاف مؤقت (A/Space)";
+
+            score = 0;
+            cumulativeScore = 0; 
+            scoreDisplay.textContent = score;
+            highScoreDisplay.textContent = high_score;
+            baseGameSpeed = INITIAL_SPEED;
+            
+            // تهيئة الثعبان
+            snake = [{ x: Math.floor(BOARD_SIZE / 2), y: Math.floor(BOARD_SIZE / 2) }];
+            direction = { x: 1, y: 0 }; 
+            nextDirection = { x: 1, y: 0 };
+            snake.push({ x: snake[0].x - 1, y: snake[0].y });
+            snake.push({ x: snake[0].x - 2, y: snake[0].y });
+
+            foodItems = [];
+            placeFood(false); 
+            drawGame();
+            renderShop();
+            updateGameInterval(baseGameSpeed);
+
+            // بدء مؤقت الوقت
+            startTime = Date.now();
+            timeScoreDisplay.textContent = "00:00";
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+        
+        function updateGameInterval(newSpeed) {
+            clearInterval(gameLoopInterval);
+            gameSpeed = newSpeed;
+            gameLoopInterval = setInterval(gameLoop, gameSpeed);
+        }
+
+        function gameLoop() {
+            if (isPaused) return;
+
+            // 1. تطبيق الجذب المغناطيسي
+            if (isMagnetActive) {
+                const head = snake[0];
+                foodItems.forEach(food => {
+                    // حساب المسافة
+                    const dx = food.x - head.x;
+                    const dy = food.y - head.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance <= MAGNET_RANGE) {
+                        // سحب الطعام ببطء نحو رأس الثعبان
+                        if (Math.abs(dx) > 0) food.x += (dx > 0 ? -1 : 1); 
+                        if (Math.abs(dy) > 0) food.y += (dy > 0 ? -1 : 1);
+                    }
+                });
+            }
+
+            // 2. الحركة العادية
+            direction = nextDirection;
+            let head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+            // عبور الجدران
+            if (head.x < 0) head.x = BOARD_SIZE - 1;
+            else if (head.x >= BOARD_SIZE) head.x = 0;
+            else if (head.y < 0) head.y = BOARD_SIZE - 1;
+            else if (head.y >= BOARD_SIZE) head.y = 0;
+
+            // فحص نهاية اللعبة
+            if (checkCollision(head) && !isInvincible) {
+                gameOver();
+                return;
+            }
+
+            // إضافة رأس جديد
+            snake.unshift(head);
+
+            // 3. فحص الأكل
+            let foodEatenIndex = foodItems.findIndex(food => head.x === food.x && head.y === food.y);
+            
+            if (foodEatenIndex !== -1) {
+                score += POINTS_PER_FOOD; 
+                cumulativeScore += POINTS_PER_FOOD; // تحديث السكور التراكمي
+                scoreDisplay.textContent = score;
+                renderShop(); 
+                
+                foodItems.splice(foodEatenIndex, 1);
+                if (foodItems.length === 0) {
+                     placeFood(false); 
+                }
+
+                // تحديث أعلى سكور
+                if (cumulativeScore > high_score) {
+                    high_score = cumulativeScore;
+                    localStorage.setItem('snake_high_score', high_score);
+                    highScoreDisplay.textContent = high_score;
+                }
+
+                // تسريع اللعبة تدريجياً
+                if (baseGameSpeed > 50) {
+                    baseGameSpeed -= 2; 
+                    updateGameInterval(baseGameSpeed);
+                }
+            } else {
+                snake.pop();
+            }
+
+            drawGame();
+        }
+
+        function checkCollision(head) {
+            for (let i = 1; i < snake.length; i++) {
+                if (snake[i].x === head.x && snake[i].y === head.y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function placeFood(isSpawned) {
+            let newFood;
+            do {
+                newFood = {
+                    x: Math.floor(Math.random() * BOARD_SIZE),
+                    y: Math.floor(Math.random() * BOARD_SIZE),
+                    isSpawned: isSpawned || false
+                };
+            } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y) || foodItems.some(f => f.x === newFood.x && f.y === newFood.y));
+            
+            foodItems.push(newFood);
+        }
+
+        function drawGame() {
+            gameBoard.innerHTML = '';
+            // رسم الثعبان
+            snake.forEach(segment => {
+                const snakeElement = document.createElement('div');
+                snakeElement.style.gridRowStart = segment.y + 1;
+                snakeElement.style.gridColumnStart = segment.x + 1;
+                snakeElement.classList.add('snake');
+                if (isInvincible) { snakeElement.style.opacity = '0.5'; }
+                gameBoard.appendChild(snakeElement);
+            });
+
+            // رسم كرات الطعام
+            foodItems.forEach(food => {
+                const foodElement = document.createElement('div');
+                foodElement.style.gridRowStart = food.y + 1;
+                foodElement.style.gridColumnStart = food.x + 1;
+                foodElement.classList.add('food');
+                if (food.isSpawned) { foodElement.classList.add('spawned'); }
+                gameBoard.appendChild(foodElement);
+            });
+        }
+
+        function gameOver() {
+            clearInterval(gameLoopInterval);
+            clearInterval(timerInterval); 
+            gameActive = false;
+
+            // عرض النتائج النهائية
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-time').textContent = timeScoreDisplay.textContent;
+            gameOverOverlay.style.display = 'flex';
+        }
+
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                pauseButton.textContent = "تشغيل (A/Space)";
+                clearInterval(gameLoopInterval);
+                clearInterval(timerInterval); 
+            } else {
+                pauseButton.textContent = "إيقاف مؤقت (A/Space)";
+                updateGameInterval(gameSpeed);
+                // استئناف مؤقت الوقت
+                startTime = Date.now() - (Date.now() - startTime) + (Date.now() - startTime) % 1000;
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+
+        // ============================
+        // II. التحكم (الاتجاهات يمين/يسار) + زر الإيقاف المؤقت
+        // ============================
+
+        document.addEventListener('keydown', e => {
+            // مفاتيح التحكم بالإتجاهات
+            if (gameActive && !isPaused) {
+                let newDirection = { x: direction.x, y: direction.y }; 
+                switch (e.key) {
+                    case 'ArrowUp':
+                        if (direction.y === 1) return; newDirection = { x: 0, y: -1 }; break;
+                    case 'ArrowDown':
+                        if (direction.y === -1) return; newDirection = { x: 0, y: 1 }; break;
+                    case 'ArrowLeft':
+                        if (direction.x === -1) return; newDirection = { x: 1, y: 0 }; break; // معكوس
+                    case 'ArrowRight':
+                        if (direction.x === 1) return; newDirection = { x: -1, y: 0 }; break; // معكوس
+                }
+                nextDirection = newDirection;
+            }
+            
+            // زر الإيقاف المؤقت (A أو المسافة)
+            if (e.key === 'a' || e.key === 'A' || e.key === ' ') {
+                togglePause();
+                e.preventDefault(); // منع تحريك الشاشة عند الضغط على المسافة
+            }
+        });
+
+        // ============================
+        // III. منطق المتجر المفتوح
+        // ============================
+
+        function renderShop() {
+            const upgradesList = document.getElementById('upgrades-list');
+            upgradesList.innerHTML = '';
+
+            for (const key in POWERUPS) {
+                const powerup = POWERUPS[key];
+                const item = document.createElement('div');
+                item.classList.add('upgrade-item');
+                
+                const isAvailable = score >= powerup.cost;
+                const isActive = powerup.active;
+
+                if (isAvailable && !isActive) {
+                    item.classList.add('ready-to-buy');
+                } else {
+                    item.classList.remove('ready-to-buy');
+                }
+                
+                item.innerHTML = `
+                    <div class="upgrade-details">
+                        <h4>${powerup.name}</h4>
+                        <p style="font-size: 0.9em; color: #ccc;">${powerup.desc}</p>
+                        <p style="font-weight: bold;">التكلفة: ${powerup.cost} نقطة</p>
+                    </div>
+                    <button class="buy-button" 
+                        ${!isAvailable || isActive ? 'disabled' : ''} 
+                        onclick="buyPowerup('${key}', ${powerup.cost})">
+                        ${isActive ? 'قيد الاستخدام' : 'شراء وتفعيل'}
+                    </button>
+                `;
+                
+                if (isActive) {
+                     item.style.border = '2px dashed #FF6347';
+                     item.style.boxShadow = '0 0 10px #FF6347';
+                } else {
+                     item.style.border = '';
+                     item.style.boxShadow = '';
+                }
+
+                upgradesList.appendChild(item);
+            }
+        }
+
+        function buyPowerup(key, cost) {
+            const powerup = POWERUPS[key];
+            if (score >= cost && (!powerup.active || powerup.active === undefined)) {
+                
+                if (!isPaused) {
+                    togglePause(); 
+                }
+                
+                const confirmBuy = confirm(`هل أنت متأكد من شراء ${powerup.name} مقابل ${cost} نقطة؟`);
+                
+                if (confirmBuy) {
+                    score -= cost;
+                    scoreDisplay.textContent = score;
+                    
+                    if (key === 'magnet') {
+                        activateMagnet(powerup.duration);
+                    } else if (key === 'invincibility') {
+                        activateInvincibility(powerup.duration);
+                    } else if (key === 'spawn') {
+                        placeFood(true); 
+                        alert(`تم شراء وتفعيل ${powerup.name}! ظهرت كرة طعام جديدة.`);
+                        togglePause(); 
+                    } else if (key === 'bomb') {
+                        activateTailBomb(); 
+                        alert(`تم شراء وتفعيل ${powerup.name}! تم تقصير الثعبان.`);
+                        togglePause(); 
+                    }
+                    
+                    renderShop(); 
+                } else {
+                    togglePause();
+                }
+            }
+        }
+        
+        // ============================
+        // IV. تفعيل القوى
+        // ============================
+
+        function activateMagnet(duration) {
+            clearTimeout(magnetTimer);
+            isMagnetActive = true;
+            POWERUPS.magnet.active = true;
+            powerupStatus.style.display = 'block';
+            powerupStatus.textContent = '🧲 الجذب نشط (5 ثوانٍ)...';
+            togglePause(); 
+
+            magnetTimer = setTimeout(() => {
+                isMagnetActive = false;
+                POWERUPS.magnet.active = false;
+                powerupStatus.style.display = 'none';
+                renderShop();
+                alert('انتهى تأثير الجذب!');
+            }, duration);
+        }
+
+        function activateInvincibility(duration) {
+            clearTimeout(invincibilityTimer);
+            isInvincible = true;
+            POWERUPS.invincibility.active = true;
+            powerupStatus.style.display = 'block';
+            powerupStatus.textContent = '⭐ الحصانة نشطة (60 ثانية)...';
+            togglePause(); 
+
+            invincibilityTimer = setTimeout(() => {
+                isInvincible = false;
+                POWERUPS.invincibility.active = false;
+                powerupStatus.style.display = 'none';
+                renderShop();
+                alert('انتهى تأثير الحصانة!');
+            }, duration);
+        }
+        
+        function activateTailBomb() {
+            if (snake.length > TAIL_BOMB_LENGTH) {
+                snake.splice(TAIL_BOMB_LENGTH);
+                drawGame();
+            }
+        }
+
+
+        // ============================
+        // V. بدء التشغيل
+        // ============================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initGame();
+        });
+
+    </script>
+    <div><h1><a role="button" href=
+        "file:///E:/%D9%85%D8%B4%D8%B1%D9%8A%D8%B9%D9%8A/%D8%A3%D9%84%D8%AB%D8%B9%D8%A8%D8%A7%D9%86/game.html">
+         <button>
+                               أعادة ألتشغيل
+         </button>
+    </a></h1></div>
+</body>
+</html>
